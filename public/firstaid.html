@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First Aider – Red Cross</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* Mobile-first overrides for first-aider view */
+    body { font-size: 1rem; }
+
+    .fa-no-team {
+      margin: 2rem 1rem;
+      text-align: center;
+    }
+    .fa-no-team .icon { font-size: 3rem; }
+    .fa-no-team p { color: var(--muted); margin-top: .5rem; }
+
+    .patient-card-header .triage-label { font-size: 1.05rem; }
+    .patient-card-body .detail-row { font-size: 1rem; }
+    .patient-card-body .notes-block {
+      background: var(--bg);
+      border-radius: .375rem;
+      padding: .5rem .75rem;
+      font-size: .95rem;
+      margin-top: .25rem;
+      white-space: pre-wrap;
+    }
+    .status-treated { opacity: .6; }
+  </style>
+</head>
+<body>
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="cross">+</span>
+      <div>
+        <div class="header-title" id="event-title">Loading…</div>
+        <div class="header-event" id="team-name-display"></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="/events.html" class="btn btn-outline btn-sm">◀ Events</a>
+      <button class="btn btn-outline btn-sm" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <!-- ── Summary banner ────────────────────────────────────────────────────── -->
+  <div class="fa-summary" id="fa-summary" style="display:none">
+    <span class="triage-chip chip-total">Assigned: <strong id="count-total">0</strong></span>
+    <span class="triage-chip chip-red">🔴 <strong id="count-red">0</strong></span>
+    <span class="triage-chip chip-yellow">🟡 <strong id="count-yellow">0</strong></span>
+    <span class="triage-chip chip-green">🟢 <strong id="count-green">0</strong></span>
+  </div>
+
+  <!-- ── Patient cards ──────────────────────────────────────────────────────── -->
+  <main style="padding: .75rem 1rem 4rem">
+    <div id="patients-container">
+      <p class="loading">Loading…</p>
+    </div>
+  </main>
+
+  <!-- ── Refresh button (floating) ─────────────────────────────────────────── -->
+  <button id="refresh-btn" title="Refresh patients"
+    style="position:fixed;bottom:1.25rem;right:1.25rem;width:3.5rem;height:3.5rem;border-radius:9999px;
+           background:var(--primary);color:#fff;border:none;font-size:1.4rem;cursor:pointer;
+           box-shadow:0 4px 12px rgba(0,0,0,.3)">
+    ↻
+  </button>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const eventId = params.get('event');
+    if (!eventId) location.href = '/events.html';
+
+    let myUserId  = null;
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s ?? '';
+      return d.innerHTML;
+    }
+
+    function triageLabel(level) {
+      return level === 'red' ? '🔴 RED – Immediate'
+           : level === 'yellow' ? '🟡 YELLOW – Delayed'
+           : '🟢 GREEN – Minor';
+    }
+
+    function timeStr(dt) {
+      return new Date(dt + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function init() {
+      const meRes = await fetch('/api/auth/me');
+      if (!meRes.ok) { location.href = '/login.html'; return; }
+      const me = await meRes.json();
+
+      if (me.role === 'coordinator') {
+        location.href = `/coordinator.html?event=${eventId}`;
+        return;
+      }
+
+      myUserId = me.id;
+
+      const evRes = await fetch(`/api/events/${eventId}`);
+      if (!evRes.ok) { location.href = '/events.html'; return; }
+      const ev = await evRes.json();
+      document.getElementById('event-title').textContent = ev.name;
+
+      // Find my team in this event
+      const teamsRes = await fetch(`/api/events/${eventId}/teams`);
+      const teams    = await teamsRes.json();
+      const myTeam   = teams.find(t => t.members.some(m => m.id === me.id));
+      if (myTeam) {
+        document.getElementById('team-name-display').textContent = `Team: ${myTeam.name}`;
+      }
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/login.html';
+      });
+
+      document.getElementById('refresh-btn').addEventListener('click', loadPatients);
+
+      await loadPatients();
+      setupSocket();
+    }
+
+    async function loadPatients() {
+      const res      = await fetch(`/api/events/${eventId}/patients`);
+      const patients = await res.json();
+      renderPatients(patients);
+    }
+
+    function renderPatients(patients) {
+      const container = document.getElementById('patients-container');
+      const summary   = document.getElementById('fa-summary');
+
+      if (!patients.length) {
+        summary.style.display = 'none';
+        container.innerHTML = `
+          <div class="fa-no-team">
+            <div class="icon">📋</div>
+            <p>No patients assigned to your team yet.</p>
+            <p style="margin-top:.5rem;font-size:.85rem">Your coordinator will assign patients here.</p>
+          </div>`;
+        return;
+      }
+
+      // Update summary
+      summary.style.display = 'flex';
+      document.getElementById('count-total').textContent  = patients.length;
+      document.getElementById('count-red').textContent    = patients.filter(p => p.triage_level === 'red').length;
+      document.getElementById('count-yellow').textContent = patients.filter(p => p.triage_level === 'yellow').length;
+      document.getElementById('count-green').textContent  = patients.filter(p => p.triage_level === 'green').length;
+
+      container.innerHTML = `
+        <div class="patient-cards">
+          ${patients.map(patientCard).join('')}
+        </div>`;
+    }
+
+    function patientCard(p) {
+      const treated = p.status === 'treated';
+      return `
+        <div class="patient-card ${treated ? 'status-treated' : ''}" id="card-${p.id}">
+          <div class="patient-card-header triage-${p.triage_level}">
+            <span class="triage-label">${triageLabel(p.triage_level)}</span>
+            <span style="font-size:.8rem;opacity:.75">#${p.id} · ${timeStr(p.created_at)}</span>
+          </div>
+          <div class="patient-card-body">
+            <div class="detail-row">
+              <span class="detail-label">📍 Location</span>
+              <span>${esc(p.location_description)}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">🩺 Incident</span>
+              <span>${esc(p.incident_type)}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">📊 Status</span>
+              <span><span class="badge badge-${p.status}">${p.status}</span></span>
+            </div>
+            ${p.notes ? `
+            <div class="detail-row" style="flex-direction:column;gap:.2rem">
+              <span class="detail-label">📝 Notes</span>
+              <div class="notes-block">${esc(p.notes)}</div>
+            </div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function setupSocket() {
+      const socket = io();
+      socket.emit('join-event', eventId);
+
+      async function refresh() { await loadPatients(); }
+      socket.on('patient-added',   refresh);
+      socket.on('patient-updated', refresh);
+      socket.on('patient-deleted', refresh);
+    }
+
+    init();
+  </script>
+</body>
+</html>
