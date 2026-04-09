@@ -22,9 +22,6 @@ async function loginAs(app, username, password) {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 describe('Auth', () => {
-  let app;
-  beforeAll(() => ({ app } = setup()));
-
   test('rejects missing credentials', async () => {
     const { app } = setup();
     await request(app).post('/api/auth/login').send({}).expect(400);

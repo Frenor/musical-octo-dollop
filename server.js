@@ -92,7 +92,14 @@ function createApp(db) {
       secret: process.env.SESSION_SECRET || 'redcross-dev-secret-change-in-production',
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 24 * 60 * 60 * 1000 },
+      cookie: {
+        maxAge:   24 * 60 * 60 * 1000,
+        httpOnly: true,
+        // SameSite=lax prevents CSRF – cross-site form submissions cannot carry the cookie
+        sameSite: 'lax',
+        // Enforce HTTPS-only cookies in production (set NODE_ENV=production when deploying over TLS)
+        secure:   process.env.NODE_ENV === 'production',
+      },
     })
   );
   app.use(express.static(path.join(__dirname, 'public')));

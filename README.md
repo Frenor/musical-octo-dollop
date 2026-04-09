@@ -44,6 +44,7 @@ Default accounts created on first run:
 | `PORT` | `3000` | HTTP port |
 | `DB_PATH` | `./data.db` | Path to the SQLite database file |
 | `SESSION_SECRET` | *(dev default)* | Session secret – **change in production** |
+| `NODE_ENV` | — | Set to `production` to enable `Secure` flag on the session cookie (requires HTTPS) |
 
 ## Running tests
 
