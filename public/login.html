@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Red Cross Event Coordinator – Login</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="logo">
+      <div class="cross">+</div>
+      <h1>Red Cross Event Coordinator</h1>
+    </div>
+
+    <form id="login-form" class="card">
+      <h2 style="margin-bottom:1rem">Sign In</h2>
+      <div id="error-msg" class="error-msg hidden"></div>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" autofocus>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-top:.5rem">Sign In</button>
+    </form>
+  </div>
+
+  <script>
+    // Redirect if already authenticated
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(u => { if (u.id) location.href = '/events.html'; })
+      .catch(() => {});
+
+    document.getElementById('login-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl = document.getElementById('error-msg');
+      errEl.classList.add('hidden');
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const res  = await fetch('/api/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Login failed';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        location.href = '/events.html';
+      } catch {
+        errEl.textContent = 'Connection error – please try again.';
+        errEl.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

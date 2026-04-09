@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events – Red Cross Coordinator</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <span class="cross">+</span>
+      <span class="header-title">Red Cross Coordinator</span>
+    </div>
+    <div class="header-right">
+      <span id="username-display" style="font-size:.85rem;opacity:.9"></span>
+      <button class="btn btn-outline btn-sm" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-header">
+      <h2>Events</h2>
+      <button class="btn btn-primary" id="create-event-btn" style="display:none">+ New Event</button>
+    </div>
+
+    <div id="events-list" class="events-grid">
+      <p class="loading">Loading…</p>
+    </div>
+  </main>
+
+  <!-- Create Event Modal -->
+  <div id="create-event-modal" class="modal hidden">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-content card">
+      <h3>Create New Event</h3>
+      <form id="create-event-form">
+        <div class="form-group">
+          <label for="ev-name">Event Name *</label>
+          <input type="text" id="ev-name" placeholder="e.g. City Marathon 2026" required>
+        </div>
+        <div class="form-group">
+          <label for="ev-date">Date *</label>
+          <input type="date" id="ev-date" required>
+        </div>
+        <div class="form-group">
+          <label for="ev-location">Location</label>
+          <input type="text" id="ev-location" placeholder="e.g. City Park, Main Square">
+        </div>
+        <div id="create-err" class="error-msg hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancel-event-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Event</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    async function init() {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) { location.href = '/login.html'; return; }
+      currentUser = await res.json();
+      document.getElementById('username-display').textContent =
+        `${currentUser.username} (${currentUser.role === 'coordinator' ? 'Coordinator' : 'First Aider'})`;
+
+      if (currentUser.role === 'coordinator') {
+        document.getElementById('create-event-btn').style.display = '';
+      }
+      loadEvents();
+    }
+
+    async function loadEvents() {
+      const res    = await fetch('/api/events');
+      const events = await res.json();
+      renderEvents(events);
+    }
+
+    function renderEvents(events) {
+      const el = document.getElementById('events-list');
+      if (!events.length) {
+        el.innerHTML = `<p class="empty-state">No events yet.${
+          currentUser.role === 'coordinator'
+            ? ' Use <strong>+ New Event</strong> to create one.'
+            : ' Ask a coordinator to create an event.'
+        }</p>`;
+        return;
+      }
+      el.innerHTML = events.map(ev => `
+        <div class="event-card card ${ev.status === 'closed' ? 'event-closed' : ''}">
+          <div class="event-header">
+            <h3>${esc(ev.name)}</h3>
+            <span class="badge badge-${ev.status}">${ev.status}</span>
+          </div>
+          <div class="event-details">
+            <span>📅 ${esc(ev.date)}</span>
+            ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
+          </div>
+          <div class="event-actions">
+            <button class="btn btn-primary" onclick="selectEvent(${ev.id})">
+              ${currentUser.role === 'coordinator' ? 'Manage' : 'Open'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function selectEvent(id) {
+      await fetch(`/api/events/${id}/select`, { method: 'POST' });
+      location.href = currentUser.role === 'coordinator'
+        ? `/coordinator.html?event=${id}`
+        : `/firstaid.html?event=${id}`;
+    }
+
+    // Logout
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      location.href = '/login.html';
+    });
+
+    // Create event modal
+    document.getElementById('create-event-btn').addEventListener('click', () => {
+      document.getElementById('ev-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('create-event-modal').classList.remove('hidden');
+    });
+    function closeCreateModal() {
+      document.getElementById('create-event-modal').classList.add('hidden');
+      document.getElementById('create-event-form').reset();
+      document.getElementById('create-err').classList.add('hidden');
+    }
+    document.getElementById('cancel-event-btn').addEventListener('click', closeCreateModal);
+    document.getElementById('modal-backdrop').addEventListener('click', closeCreateModal);
+
+    document.getElementById('create-event-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl = document.getElementById('create-err');
+      errEl.classList.add('hidden');
+      const body = {
+        name:     document.getElementById('ev-name').value.trim(),
+        date:     document.getElementById('ev-date').value,
+        location: document.getElementById('ev-location').value.trim(),
+      };
+      const res = await fetch('/api/events', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      if (res.ok) {
+        closeCreateModal();
+        loadEvents();
+      } else {
+        const d = await res.json();
+        errEl.textContent = d.error || 'Failed to create event';
+        errEl.classList.remove('hidden');
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

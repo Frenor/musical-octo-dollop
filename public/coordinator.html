@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coordinator – Red Cross</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="cross">+</span>
+      <div>
+        <div class="header-title" id="event-title">Loading…</div>
+        <div class="header-event" id="event-meta"></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="/events.html" class="btn btn-outline btn-sm">◀ Events</a>
+      <button class="btn btn-outline btn-sm" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────────── -->
+  <main class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="patients">🩹 Patients</button>
+      <button class="tab-btn" data-tab="teams">👥 Teams</button>
+    </div>
+
+    <!-- ── PATIENTS TAB ──────────────────────────────────────────────────── -->
+    <div id="tab-patients" class="tab-panel active">
+      <!-- Summary + controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+        <div class="triage-summary" id="triage-summary"></div>
+        <button class="btn btn-primary" id="add-patient-btn">+ Add Patient</button>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <button class="btn btn-ghost btn-sm filter-active" data-filter="all">All</button>
+        <button class="btn btn-ghost btn-sm" data-filter="red">🔴 Red</button>
+        <button class="btn btn-ghost btn-sm" data-filter="yellow">🟡 Yellow</button>
+        <button class="btn btn-ghost btn-sm" data-filter="green">🟢 Green</button>
+        <button class="btn btn-ghost btn-sm" data-filter="unassigned">Unassigned</button>
+        <button class="btn btn-ghost btn-sm" data-filter="waiting">Waiting</button>
+        <button class="btn btn-ghost btn-sm" data-filter="treated">Treated</button>
+      </div>
+
+      <div id="patients-container">
+        <p class="loading">Loading patients…</p>
+      </div>
+    </div>
+
+    <!-- ── TEAMS TAB ─────────────────────────────────────────────────────── -->
+    <div id="tab-teams" class="tab-panel">
+      <div class="page-header" style="margin-bottom:.75rem">
+        <h3>Teams</h3>
+        <button class="btn btn-primary btn-sm" id="add-team-btn">+ Add Team</button>
+      </div>
+      <div id="teams-container">
+        <p class="loading">Loading teams…</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Add / Edit Patient Modal ──────────────────────────────────────────── -->
+  <div id="patient-modal" class="modal hidden">
+    <div class="modal-backdrop" id="patient-modal-backdrop"></div>
+    <div class="modal-content card">
+      <h3 id="patient-modal-title">Add Patient</h3>
+      <form id="patient-form">
+        <input type="hidden" id="patient-id">
+
+        <div class="form-group">
+          <label for="pt-location">Location Description *</label>
+          <textarea id="pt-location" rows="2" placeholder="e.g. Near finish line, start area tent" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="pt-incident">Incident Type *</label>
+          <input type="text" id="pt-incident" list="incident-suggestions" placeholder="e.g. Cardiac, Fracture, Heat exhaustion" required>
+          <datalist id="incident-suggestions">
+            <option value="Cardiac / Chest Pain">
+            <option value="Respiratory Distress">
+            <option value="Unconscious / Unresponsive">
+            <option value="Trauma / Injury">
+            <option value="Head Injury">
+            <option value="Fracture / Sprain">
+            <option value="Bleeding / Wound">
+            <option value="Allergic Reaction">
+            <option value="Heat Exhaustion / Stroke">
+            <option value="Cold Exposure / Hypothermia">
+            <option value="Dehydration">
+            <option value="Diabetic Emergency">
+            <option value="Seizure">
+            <option value="Stroke">
+            <option value="Psychological / Mental Health">
+            <option value="Other">
+          </datalist>
+        </div>
+
+        <div class="form-group">
+          <label>Triage Level *</label>
+          <div class="triage-radio-group">
+            <label>
+              <input type="radio" name="triage_level" value="red" required>
+              <span>🔴 Red</span>
+            </label>
+            <label>
+              <input type="radio" name="triage_level" value="yellow">
+              <span>🟡 Yellow</span>
+            </label>
+            <label>
+              <input type="radio" name="triage_level" value="green">
+              <span>🟢 Green</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="pt-team">Assign to Team</label>
+          <select id="pt-team">
+            <option value="">— Unassigned —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="pt-status">Status</label>
+          <select id="pt-status">
+            <option value="waiting">Waiting</option>
+            <option value="assigned">Assigned</option>
+            <option value="treated">Treated</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="pt-notes">Notes</label>
+          <textarea id="pt-notes" placeholder="Additional observations, treatment notes…"></textarea>
+        </div>
+
+        <div id="patient-err" class="error-msg hidden"></div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancel-patient-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="save-patient-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Add Team Modal ────────────────────────────────────────────────────── -->
+  <div id="team-modal" class="modal hidden">
+    <div class="modal-backdrop" id="team-modal-backdrop"></div>
+    <div class="modal-content card">
+      <h3>Create Team</h3>
+      <form id="team-form">
+        <div class="form-group">
+          <label for="team-name">Team Name *</label>
+          <input type="text" id="team-name" placeholder="e.g. Alpha, Team 1" required>
+        </div>
+        <div id="team-err" class="error-msg hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" id="cancel-team-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Socket.io client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // ── State ────────────────────────────────────────────────────────────────
+    const params  = new URLSearchParams(location.search);
+    const eventId = params.get('event');
+    if (!eventId) location.href = '/events.html';
+
+    let currentFilter = 'all';
+    let allPatients   = [];
+    let allTeams      = [];
+    let firstAiders   = [];
+
+    // ── Utilities ────────────────────────────────────────────────────────────
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s ?? '';
+      return d.innerHTML;
+    }
+
+    function triageIcon(level) {
+      return level === 'red' ? '🔴' : level === 'yellow' ? '🟡' : '🟢';
+    }
+
+    function statusBadge(s) {
+      return `<span class="badge badge-${s}">${s}</span>`;
+    }
+
+    function timeAgo(dt) {
+      const diff = Math.floor((Date.now() - new Date(dt + 'Z').getTime()) / 60000);
+      if (diff < 1) return 'just now';
+      if (diff < 60) return `${diff}m ago`;
+      const h = Math.floor(diff / 60);
+      return `${h}h ${diff % 60}m ago`;
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    async function init() {
+      const meRes = await fetch('/api/auth/me');
+      if (!meRes.ok) { location.href = '/login.html'; return; }
+      const me = await meRes.json();
+      if (me.role !== 'coordinator') { location.href = `/firstaid.html?event=${eventId}`; return; }
+
+      const evRes = await fetch(`/api/events/${eventId}`);
+      if (!evRes.ok) { location.href = '/events.html'; return; }
+      const ev = await evRes.json();
+
+      document.getElementById('event-title').textContent = ev.name;
+      document.getElementById('event-meta').textContent =
+        `${ev.date}${ev.location ? ' · ' + ev.location : ''}`;
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/login.html';
+      });
+
+      await Promise.all([loadTeams(), loadFirstAiders()]);
+      await loadPatients();
+      setupSocket();
+    }
+
+    // ── Data loaders ─────────────────────────────────────────────────────────
+    async function loadPatients() {
+      const res = await fetch(`/api/events/${eventId}/patients`);
+      allPatients = await res.json();
+      renderPatients();
+    }
+
+    async function loadTeams() {
+      const res = await fetch(`/api/events/${eventId}/teams`);
+      allTeams = await res.json();
+      renderTeams();
+      populateTeamSelect();
+    }
+
+    async function loadFirstAiders() {
+      const res  = await fetch('/api/users/first-aiders');
+      firstAiders = await res.json();
+    }
+
+    // ── Patients rendering ───────────────────────────────────────────────────
+    function filteredPatients() {
+      if (currentFilter === 'all')        return allPatients;
+      if (currentFilter === 'unassigned') return allPatients.filter(p => !p.team_id);
+      if (['red','yellow','green'].includes(currentFilter))
+                                          return allPatients.filter(p => p.triage_level === currentFilter);
+      return allPatients.filter(p => p.status === currentFilter);
+    }
+
+    function renderPatients() {
+      // Summary chips
+      const red    = allPatients.filter(p => p.triage_level === 'red').length;
+      const yellow = allPatients.filter(p => p.triage_level === 'yellow').length;
+      const green  = allPatients.filter(p => p.triage_level === 'green').length;
+      const wait   = allPatients.filter(p => p.status === 'waiting').length;
+      document.getElementById('triage-summary').innerHTML = `
+        <span class="triage-chip chip-total">Total: <strong>${allPatients.length}</strong></span>
+        <span class="triage-chip chip-red">🔴 ${red}</span>
+        <span class="triage-chip chip-yellow">🟡 ${yellow}</span>
+        <span class="triage-chip chip-green">🟢 ${green}</span>
+        <span class="triage-chip chip-waiting">⏳ Waiting: ${wait}</span>
+      `;
+
+      const patients = filteredPatients();
+      const container = document.getElementById('patients-container');
+
+      if (!patients.length) {
+        container.innerHTML = '<p class="empty-state">No patients match the current filter.</p>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="patient-table-wrap">
+          <table class="patient-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Triage</th>
+                <th>Time</th>
+                <th>Location</th>
+                <th>Incident</th>
+                <th>Team</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${patients.map(p => patientRow(p)).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function patientRow(p) {
+      const teamOpts = allTeams.map(t =>
+        `<option value="${t.id}" ${p.team_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`
+      ).join('');
+
+      return `
+        <tr class="row-${p.triage_level}" id="row-${p.id}">
+          <td data-label="#">${p.id}</td>
+          <td data-label="Triage">
+            <span class="badge badge-${p.triage_level}">${triageIcon(p.triage_level)} ${p.triage_level.toUpperCase()}</span>
+          </td>
+          <td data-label="Time" title="${p.created_at}">${timeAgo(p.created_at)}</td>
+          <td data-label="Location">${esc(p.location_description)}</td>
+          <td data-label="Incident">${esc(p.incident_type)}</td>
+          <td data-label="Team">
+            <select class="team-inline-select" data-id="${p.id}" style="font-size:.8rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:4px">
+              <option value="">— Unassigned —</option>
+              ${teamOpts}
+            </select>
+          </td>
+          <td data-label="Status">${statusBadge(p.status)}</td>
+          <td data-label="Actions">
+            <div class="actions-cell">
+              <button class="btn btn-ghost btn-sm" onclick="openEditPatient(${p.id})">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deletePatient(${p.id})">✕</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    // Quick team-assignment via inline select
+    document.getElementById('patients-container').addEventListener('change', async e => {
+      if (!e.target.classList.contains('team-inline-select')) return;
+      const id     = e.target.dataset.id;
+      const teamId = e.target.value || null;
+      await apiFetch(`/api/patients/${id}`, 'PUT', { team_id: teamId });
+    });
+
+    // ── Triage filter ────────────────────────────────────────────────────────
+    document.querySelectorAll('.filter-bar .btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-bar .btn').forEach(b => b.classList.remove('filter-active'));
+        btn.classList.add('filter-active');
+        currentFilter = btn.dataset.filter;
+        renderPatients();
+      });
+    });
+
+    // ── Patient modal ────────────────────────────────────────────────────────
+    function populateTeamSelect(selectedId) {
+      const sel = document.getElementById('pt-team');
+      sel.innerHTML = '<option value="">— Unassigned —</option>' +
+        allTeams.map(t => `<option value="${t.id}" ${selectedId == t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+    }
+
+    function openAddPatient() {
+      document.getElementById('patient-modal-title').textContent = 'Add Patient';
+      document.getElementById('patient-form').reset();
+      document.getElementById('patient-id').value = '';
+      document.getElementById('patient-err').classList.add('hidden');
+      populateTeamSelect();
+      document.getElementById('patient-modal').classList.remove('hidden');
+    }
+
+    function openEditPatient(id) {
+      const p = allPatients.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('patient-modal-title').textContent = `Edit Patient #${id}`;
+      document.getElementById('patient-id').value = id;
+      document.getElementById('pt-location').value = p.location_description;
+      document.getElementById('pt-incident').value = p.incident_type;
+      document.querySelector(`input[name="triage_level"][value="${p.triage_level}"]`).checked = true;
+      document.getElementById('pt-status').value = p.status;
+      document.getElementById('pt-notes').value = p.notes || '';
+      populateTeamSelect(p.team_id);
+      document.getElementById('patient-err').classList.add('hidden');
+      document.getElementById('patient-modal').classList.remove('hidden');
+    }
+
+    function closePatientModal() {
+      document.getElementById('patient-modal').classList.add('hidden');
+    }
+
+    document.getElementById('add-patient-btn').addEventListener('click', openAddPatient);
+    document.getElementById('cancel-patient-btn').addEventListener('click', closePatientModal);
+    document.getElementById('patient-modal-backdrop').addEventListener('click', closePatientModal);
+
+    document.getElementById('patient-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl   = document.getElementById('patient-err');
+      errEl.classList.add('hidden');
+
+      const id      = document.getElementById('patient-id').value;
+      const payload = {
+        location_description: document.getElementById('pt-location').value.trim(),
+        incident_type:        document.getElementById('pt-incident').value.trim(),
+        triage_level:         document.querySelector('input[name="triage_level"]:checked')?.value,
+        team_id:              document.getElementById('pt-team').value || null,
+        status:               document.getElementById('pt-status').value,
+        notes:                document.getElementById('pt-notes').value.trim(),
+      };
+
+      const url    = id ? `/api/patients/${id}` : `/api/events/${eventId}/patients`;
+      const method = id ? 'PUT' : 'POST';
+      const res    = await apiFetch(url, method, payload);
+
+      if (res.error) {
+        errEl.textContent = res.error;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      closePatientModal();
+    });
+
+    async function deletePatient(id) {
+      if (!confirm(`Remove patient #${id}?`)) return;
+      await apiFetch(`/api/patients/${id}`, 'DELETE');
+    }
+
+    // ── Teams rendering ──────────────────────────────────────────────────────
+    function renderTeams() {
+      const el = document.getElementById('teams-container');
+      if (!allTeams.length) {
+        el.innerHTML = '<p class="empty-state">No teams yet. Create one to start assigning patients.</p>';
+        return;
+      }
+      el.innerHTML = `<div class="team-list">${allTeams.map(teamCard).join('')}</div>`;
+    }
+
+    function teamCard(t) {
+      const memberChips = t.members.map(m => `
+        <span class="member-chip">
+          ${esc(m.username)}
+          <button onclick="removeMember(${t.id}, ${m.id})" title="Remove">×</button>
+        </span>
+      `).join('');
+
+      // First aiders not already in this team
+      const usedIds = new Set(t.members.map(m => m.id));
+      const available = firstAiders.filter(fa => !usedIds.has(fa.id));
+      const addSelect = available.length
+        ? `<select class="add-member-select" data-team="${t.id}" style="font-size:.8rem;padding:.25rem .5rem;border:1px solid var(--border);border-radius:4px">
+             <option value="">+ Add first aider…</option>
+             ${available.map(fa => `<option value="${fa.id}">${esc(fa.username)}</option>`).join('')}
+           </select>`
+        : '<span style="font-size:.8rem;color:var(--muted)">All first aiders assigned</span>';
+
+      return `
+        <div class="team-card card">
+          <div class="team-header">
+            <h4>${esc(t.name)}</h4>
+            <button class="btn btn-danger btn-sm" onclick="deleteTeam(${t.id})">Delete team</button>
+          </div>
+          <div class="member-chips" style="margin-bottom:.5rem">${memberChips || '<span style="font-size:.85rem;color:var(--muted)">No members yet</span>'}</div>
+          ${addSelect}
+        </div>
+      `;
+    }
+
+    // Add member via inline select
+    document.getElementById('teams-container').addEventListener('change', async e => {
+      if (!e.target.classList.contains('add-member-select')) return;
+      const teamId = e.target.dataset.team;
+      const userId = e.target.value;
+      if (!userId) return;
+      await apiFetch(`/api/teams/${teamId}/members`, 'POST', { userId: Number(userId) });
+      await loadTeams();
+    });
+
+    async function removeMember(teamId, userId) {
+      await apiFetch(`/api/teams/${teamId}/members/${userId}`, 'DELETE');
+      await loadTeams();
+    }
+
+    async function deleteTeam(id) {
+      if (!confirm('Delete this team? Patients assigned to it will become unassigned.')) return;
+      await apiFetch(`/api/events/${eventId}/teams/${id}`, 'DELETE');
+      await Promise.all([loadTeams(), loadPatients()]);
+    }
+
+    // ── Team modal ───────────────────────────────────────────────────────────
+    document.getElementById('add-team-btn').addEventListener('click', () => {
+      document.getElementById('team-form').reset();
+      document.getElementById('team-err').classList.add('hidden');
+      document.getElementById('team-modal').classList.remove('hidden');
+    });
+    function closeTeamModal() { document.getElementById('team-modal').classList.add('hidden'); }
+    document.getElementById('cancel-team-btn').addEventListener('click', closeTeamModal);
+    document.getElementById('team-modal-backdrop').addEventListener('click', closeTeamModal);
+
+    document.getElementById('team-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const errEl = document.getElementById('team-err');
+      errEl.classList.add('hidden');
+      const name = document.getElementById('team-name').value.trim();
+      const res  = await apiFetch(`/api/events/${eventId}/teams`, 'POST', { name });
+      if (res.error) {
+        errEl.textContent = res.error;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      closeTeamModal();
+      await loadTeams();
+    });
+
+    // ── Tabs ─────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // ── Socket.io real-time updates ──────────────────────────────────────────
+    function setupSocket() {
+      const socket = io();
+      socket.emit('join-event', eventId);
+      socket.on('patient-added', p => {
+        if (String(p.event_id) !== String(eventId)) return;
+        allPatients.push(p);
+        // keep triage sort order
+        allPatients.sort((a, b) => {
+          const order = { red: 1, yellow: 2, green: 3 };
+          return order[a.triage_level] - order[b.triage_level] || a.id - b.id;
+        });
+        renderPatients();
+      });
+      socket.on('patient-updated', p => {
+        if (String(p.event_id) !== String(eventId)) return;
+        const idx = allPatients.findIndex(x => x.id === p.id);
+        if (idx >= 0) allPatients[idx] = p;
+        else allPatients.push(p);
+        allPatients.sort((a, b) => {
+          const order = { red: 1, yellow: 2, green: 3 };
+          return order[a.triage_level] - order[b.triage_level] || a.id - b.id;
+        });
+        renderPatients();
+      });
+      socket.on('patient-deleted', ({ id }) => {
+        allPatients = allPatients.filter(p => p.id !== id);
+        renderPatients();
+      });
+    }
+
+    // ── API helper ───────────────────────────────────────────────────────────
+    async function apiFetch(url, method = 'GET', body) {
+      const opts = {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const res  = await fetch(url, opts);
+      const data = await res.json().catch(() => ({}));
+      return data;
+    }
+
+    init();
+  </script>
+</body>
+</html>
